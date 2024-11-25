@@ -1,0 +1,115 @@
+---
+title: "Capital Balances"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+iba <-
+  read_excel("iba.xlsx") %>%
+  janitor::clean_names() %>%
+  select(
+    proj_number = project_no, proj_title = project_title,
+    starts_with("is_"), starts_with("fy_")
+  ) %>%
+  mutate(across(starts_with("is_"), \(x) replace_na(x, FALSE))) %>%
+  mutate(
+    proj_number = if_else(proj_number == "IBA_100114", "101007", proj_number)
+  ) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\..{6}\\."))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\.YY176C "))) %>%
+  mutate(across(proj_title, \(x) str_to_upper(x)))
+```
+
+```{r}
+balances_am0 <-
+  read_excel("balances_AM0.xls", sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+balances_ga0 <-
+  read_excel("balances_GA0.xls", sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+balances_to0 <-
+  read_excel("balances_TO0.xls", sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+balances <-
+  bind_rows(balances_am0, balances_ga0, balances_to0) %>%
+  rename(
+    agy_own = owner_agency,
+    proj_number = project_no, proj_title = project_title,
+    ltd_expenditures = ltd_expenditure
+  ) %>%
+  distinct() %>%
+  mutate(agy_imp = case_when(
+    proj_number %in% balances_ga0$project_no ~ "DCPS",
+    proj_number %in% balances_to0$project_no ~ "OCTO",
+    .default = "DGS"
+  )) %>%
+  mutate(across(proj_number, as.character)) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\..{6}\\."))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\.YY176C "))) %>%
+  mutate(across(proj_title, \(x) str_to_upper(x)))
+
+balances %>% writexl::write_xlsx("balances.xlsx")
+```
+
+```{r}
+balances_by_project <-
+  balances %>%
+  group_by(agy_imp, proj_number) %>%
+  summarize(
+    authority_ltd = sum(ltd_authority),
+    allotment_ltd = sum(ltd_allotment),
+    expenditures = sum(ltd_expenditures),
+    commitments = sum(ltd_commitments),
+    obligations = sum(ltd_obligations),
+    authority_balance = sum(authority_balance),
+    allotment_balance = sum(allotment_balance),
+  ) %>%
+  ungroup()
+
+iba_with_balances <-
+  iba %>%
+  left_join(balances_by_project, by = join_by(proj_number)) %>%
+  mutate(across(where(is.numeric), \(x) round(x, 0))) %>%
+  select(
+    !is_cip
+  ) %>%
+  relocate(c(proj_number, proj_title), .after = agy_imp) %>%
+  relocate(starts_with("fy_"), .after = last_col()) %>%
+  relocate(starts_with("is_"), .after = last_col()) %>%
+  arrange(
+    desc(is_fp), desc(is_mod), desc(is_smallcap), desc(is_labor),
+    desc(is_it), desc(is_tr),
+    agy_imp, proj_number
+  )
+
+names_pretty <- c(
+  "Implementer", "Project Number", "Project Title",
+  "Authority LTD", "Allotment LTD",
+  "Expenditures", "Commitments", "Obligations",
+  "Authority Balance", "Allotment Balance",
+  "Request 2026",
+  "Request 2027",
+  "Request 2028",
+  "Request 2029",
+  "Request 2030",
+  "Request 2031",
+  "IRB FP", "IRB IT", "IRB TR",
+  "Modernization", "Smallcap", "Labor"
+)
+
+iba_with_balances %>%
+  set_names(names_pretty) %>%
+  writexl::write_xlsx("IBA with Balances.xlsx")
+```
+
+Look at agency code CR0.
