@@ -6,7 +6,6 @@ format: html
 ```{r}
 library(tidyverse)
 library(glue)
-library(readxl)
 ```
 
 Setup
@@ -33,7 +32,7 @@ Read file
 
 ```{r}
 data_raw <-
-  read_excel(
+  readxl::read_excel(
     glue("{path_balance}/r225.xls"),
     sheet = "By Owner Project Task Sub Task", skip = 8,
     col_types = c(
