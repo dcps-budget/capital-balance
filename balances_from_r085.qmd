@@ -1,0 +1,126 @@
+---
+title: "Capital Balances"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(glue)
+library(readxl)
+```
+
+```{r}
+user <- Sys.getenv("USERNAME")
+
+path_data <- glue(
+  "C:/Users",
+  "{user}",
+  "District of Columbia Public Schools",
+  "DCPS Budget - Data",
+  .sep = "/"
+)
+
+path_balance <- glue(
+  path_data,
+  "Capital Project Balance",
+  .sep = "/"
+)
+```
+
+```{r}
+r085_raw <-
+  read_excel(
+    glue("{path_balance}/r085_owner_agency.xls"),
+    sheet = 1, skip = 19
+  ) %>%
+  janitor::clean_names()
+
+r085_raw
+```
+
+```{r}
+balances <-
+  r085_raw %>%
+  rename(
+    costcenter_number = cost_center,
+    costcenter_name = cost_center_name,
+    program_number = program,
+    account_number = account,
+    budget_lifetime = lifetime_budget,
+    allotment_lifetime = lifetime_allotment,
+    commitments = commitment,
+    budget_balance = lifetime_balance
+  ) %>%
+  mutate(
+    across(c(
+      project_number,
+      fund_number,
+      costcenter_number,
+      program_number,
+      account_number
+    ), as.character)
+  ) %>%
+  filter(str_detect(fund_number, "^3")) %>%
+  mutate(project_name_clean = project_name) %>%
+  mutate(across(project_name_clean, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
+  mutate(across(project_name_clean, \(x) str_remove(x, "\\..{6}\\."))) %>%
+  mutate(across(project_name_clean, \(x) str_remove(x, "\\.YY176C "))) %>%
+  mutate(across(project_name_clean, \(x) str_to_upper(x))) %>%
+  mutate(
+    across(
+      c(
+        budget_lifetime,
+        allotment_lifetime,
+        expenditures,
+        obligations,
+        commitments,
+        budget_balance,
+        allotment_balance
+      ),
+      \(x) round(x, 2)
+    )
+  ) %>%
+  relocate(c(
+    project_number, project_name,
+    subtask_number, subtask_name,
+    fund_number, fund_name,
+    costcenter_number, costcenter_name,
+    program_number, program_name,
+    account_number, account_name,
+    budget_lifetime, allotment_lifetime,
+    expenditures, obligations, commitments,
+    budget_balance, allotment_balance
+  )) %>%
+  arrange(
+    project_number, subtask_number,
+    fund_number, costcenter_number, program_number, account_number
+  )
+
+balances %>% writexl::write_xlsx("balances.xlsx")
+
+balances
+```
+
+```{r}
+balances_by_project <-
+  balances %>%
+  group_by(project_number) %>%
+  summarize(
+    across(
+      c(
+        budget_lifetime,
+        allotment_lifetime,
+        expenditures,
+        obligations,
+        commitments,
+        budget_balance,
+        allotment_balance
+      ),
+      sum
+    )
+  )
+
+balances_by_project %>% writexl::write_xlsx("balances_by_project.xlsx")
+
+balances_by_project
+```

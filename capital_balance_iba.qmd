@@ -1,0 +1,119 @@
+---
+title: "Capital Balances"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(glue)
+library(readxl)
+```
+
+```{r}
+user <- Sys.getenv("USERNAME")
+
+path_data <- glue(
+  "C:/Users",
+  "{user}",
+  "District of Columbia Public Schools",
+  "DCPS Budget - Data",
+  .sep = "/"
+)
+
+path_balance <- glue(
+  path_data,
+  "Capital Project Balance",
+  .sep = "/"
+)
+```
+
+```{r}
+balances_am0 <-
+  read_excel(glue("{path_balance}/balances_AM0.xls"), sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+balances_ga0 <-
+  read_excel(glue("{path_balance}/balances_GA0.xls"), sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+# balances_to0 <-
+#   read_excel("balances_TO0.xls", sheet = 3, skip = 8) %>%
+#   janitor::clean_names()
+
+balances_to0 <- tibble(project_no = c(101007))
+```
+
+```{r}
+balances_raw <-
+  balances_am0 %>%
+  rename(
+    agy_own = owner_agency,
+    proj_no = project_no, proj_name = project_title,
+    subtask_no = sub_task, subtask_name = sub_task_name,
+    fund_no = fund_detail, fund_name = fund_detail_title,
+    authority_ltd = ltd_authority,
+    allotment_ltd = ltd_allotment,
+    expenditures = ltd_expenditure,
+    commitments = ltd_commitments,
+    obligations = ltd_obligations
+  ) %>%
+  relocate(expenditures, .after = obligations) %>%
+  relocate(allotment_balance, .after = authority_balance)
+```
+
+```{r}
+balances <-
+  balances_raw %>%
+  mutate(agy_imp = case_when(
+    proj_no %in% balances_ga0$project_no ~ "DCPS",
+    proj_no %in% balances_to0$project_no ~ "OCTO",
+    .default = "DGS"
+  )) %>%
+  mutate(
+    across(c(proj_no, task_no, subtask_no, fund_no), as.character)
+  ) %>%
+  mutate(across(proj_name, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
+  mutate(across(proj_name, \(x) str_remove(x, "\\..{6}\\."))) %>%
+  mutate(across(proj_name, \(x) str_remove(x, "\\.YY176C "))) %>%
+  mutate(across(proj_name, \(x) str_to_upper(x))) %>%
+  mutate(across(where(is.double), \(x) round(x, 2))) %>%
+  relocate(agy_imp, 1) %>%
+  select(!agy_own) %>%
+  arrange(agy_imp, proj_no, subtask_no, fund_no)
+
+balances %>% writexl::write_xlsx("balances_with_encumbrances.xlsx")
+```
+
+```{r}
+balances_skinny <-
+  balances %>%
+  select(!c(commitments, obligations, expenditures))
+
+balances_skinny %>% writexl::write_xlsx("balances.xlsx")
+
+balances_skinny
+```
+
+```{r}
+encumbrances <-
+  balances %>%
+  select(!starts_with("authority")) %>%
+  select(!starts_with("allotment")) %>%
+  pivot_longer(
+    cols = c(expenditures, commitments, obligations),
+    names_to = "encumbrance_type",
+    values_to = "encumbrance_amt"
+  ) %>%
+  mutate(
+    encumbrance_type_pretty = case_when(
+      encumbrance_type == "commitments" ~ "1. Commitments",
+      encumbrance_type == "obligations" ~ "2. Obligations",
+      encumbrance_type == "expenditures" ~ "3. Expenditures",
+    )
+  ) %>%
+  arrange(agy_imp, proj_no, subtask_no, fund_no, encumbrance_type_pretty)
+
+encumbrances %>% writexl::write_xlsx("encumbrances.xlsx")
+
+encumbrances
+```

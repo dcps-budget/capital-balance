@@ -5,7 +5,69 @@ format: html
 
 ```{r}
 library(tidyverse)
+library(glue)
 library(readxl)
+```
+
+```{r}
+user <- Sys.getenv("USERNAME")
+
+path_data <- glue(
+  "C:/Users",
+  "{user}",
+  "District of Columbia Public Schools",
+  "DCPS Budget - Data",
+  .sep = "/"
+)
+
+path_balance <- glue(
+  path_data,
+  "Capital Project Balance",
+  .sep = "/"
+)
+```
+
+```{r}
+balances_am0 <-
+  read_excel(glue("{path_balance}/balances_AM0.xls"), sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+balances_ga0 <-
+  read_excel(glue("{path_balance}/balances_GA0.xls"), sheet = 3, skip = 8) %>%
+  janitor::clean_names()
+
+# balances_to0 <-
+#   read_excel("balances_TO0.xls", sheet = 3, skip = 8) %>%
+#   janitor::clean_names()
+
+balances_to0 <- tibble(project_no = c(101007))
+
+balances <-
+  balances_am0 %>%
+  rename(
+    agy_own = owner_agency,
+    proj_number = project_no, proj_title = project_title,
+    ltd_expenditures = ltd_expenditure
+  ) %>%
+  distinct() %>%
+  mutate(agy_imp = case_when(
+    proj_number %in% balances_ga0$project_no ~ "DCPS",
+    proj_number %in% balances_to0$project_no ~ "OCTO",
+    .default = "DGS"
+  )) %>%
+  mutate(
+    across(c(proj_number, task_no, sub_task, fund_detail), as.character)
+  ) %>%
+  mutate(across(where(is.double), \(x) round(x, 2))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\..{6}\\."))) %>%
+  mutate(across(proj_title, \(x) str_remove(x, "\\.YY176C "))) %>%
+  mutate(across(proj_title, \(x) str_to_upper(x))) %>%
+  relocate(agy_imp, .before = 1) %>%
+  relocate(allotment_balance, .after = authority_balance) %>%
+  select(!agy_own)
+
+balances %>% writexl::write_xlsx("balances.xlsx")
 ```
 
 ```{r}
@@ -24,41 +86,6 @@ iba <-
   mutate(across(proj_title, \(x) str_remove(x, "\\..{6}\\."))) %>%
   mutate(across(proj_title, \(x) str_remove(x, "\\.YY176C "))) %>%
   mutate(across(proj_title, \(x) str_to_upper(x)))
-```
-
-```{r}
-balances_am0 <-
-  read_excel("balances_AM0.xls", sheet = 3, skip = 8) %>%
-  janitor::clean_names()
-
-balances_ga0 <-
-  read_excel("balances_GA0.xls", sheet = 3, skip = 8) %>%
-  janitor::clean_names()
-
-balances_to0 <-
-  read_excel("balances_TO0.xls", sheet = 3, skip = 8) %>%
-  janitor::clean_names()
-
-balances <-
-  bind_rows(balances_am0, balances_ga0, balances_to0) %>%
-  rename(
-    agy_own = owner_agency,
-    proj_number = project_no, proj_title = project_title,
-    ltd_expenditures = ltd_expenditure
-  ) %>%
-  distinct() %>%
-  mutate(agy_imp = case_when(
-    proj_number %in% balances_ga0$project_no ~ "DCPS",
-    proj_number %in% balances_to0$project_no ~ "OCTO",
-    .default = "DGS"
-  )) %>%
-  mutate(across(proj_number, as.character)) %>%
-  mutate(across(proj_title, \(x) str_remove(x, "AM0|CR0|GA0|TO0"))) %>%
-  mutate(across(proj_title, \(x) str_remove(x, "\\..{6}\\."))) %>%
-  mutate(across(proj_title, \(x) str_remove(x, "\\.YY176C "))) %>%
-  mutate(across(proj_title, \(x) str_to_upper(x)))
-
-balances %>% writexl::write_xlsx("balances.xlsx")
 ```
 
 ```{r}

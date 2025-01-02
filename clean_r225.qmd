@@ -1,0 +1,137 @@
+---
+title: "Clean R225"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(glue)
+library(readxl)
+```
+
+Setup
+
+```{r}
+user <- Sys.getenv("USERNAME")
+
+path_data <- glue(
+  "C:/Users",
+  "{user}",
+  "District of Columbia Public Schools",
+  "DCPS Budget - Data",
+  .sep = "/"
+)
+
+path_balance <- glue(
+  path_data,
+  "Capital Project Balance",
+  .sep = "/"
+)
+```
+
+Read file
+
+```{r}
+data_raw <-
+  read_excel(
+    glue("{path_balance}/r225.xls"),
+    sheet = "By Owner Project Task Sub Task", skip = 8,
+    col_types = c(
+      rep("text", 3), "numeric", "text", "numeric", rep("text", 3),
+      rep("numeric", 7)
+    )
+  ) %>%
+  janitor::clean_names()
+```
+
+Rename columns
+
+```{r}
+data_renamed <-
+  data_raw %>%
+  select(
+    agency_owner = owner_agency,
+    project_number = project_no,
+    project_name = project_title,
+    task_number = task_no,
+    task_name = task_name,
+    subtask_number = sub_task,
+    subtask_name = sub_task_name,
+    fund_number = fund_detail,
+    fund_name = fund_detail_title,
+    authority_ltd = ltd_authority,
+    authority_balance = authority_balance,
+    allotment_ltd = ltd_allotment,
+    allotment_balance = allotment_balance,
+    commitments_ltd = ltd_commitments,
+    obligations_ltd = ltd_obligations,
+    expenditures_ltd = ltd_expenditure
+  )
+```
+
+Transform columns
+
+```{r}
+data_transformed <-
+  data_renamed %>%
+  mutate(
+    across(
+      c(
+        authority_ltd,
+        authority_balance,
+        allotment_ltd,
+        allotment_balance,
+        commitments_ltd,
+        obligations_ltd,
+        expenditures_ltd
+      ),
+      \(x) round(x, 2)
+    )
+  ) %>%
+  mutate(
+    across(
+      c(
+        project_name
+      ),
+      \(x) str_to_upper(x)
+    )
+  ) %>%
+  filter(agency_owner == "GA0") %>%
+  arrange(
+    agency_owner, project_number, task_number, subtask_number, fund_number
+  )
+```
+
+Separate balances and spend into different tables
+
+Balances
+
+```{r}
+balances_225 <-
+  data_transformed %>%
+  select(!c(commitments_ltd, obligations_ltd, expenditures_ltd))
+
+balances_225 %>% writexl::write_xlsx("balances_225.xlsx")
+```
+
+Spend
+
+```{r}
+spend_225 <-
+  data_transformed %>%
+  select(
+    !c(authority_ltd, authority_balance, allotment_ltd, allotment_balance)
+  ) %>%
+  pivot_longer(
+    cols = c(commitments_ltd, obligations_ltd, expenditures_ltd),
+    names_to = "spend_type", values_to = "spend_amount"
+  ) %>%
+  mutate(across(spend_type, \(x) str_remove(x, "_ltd$"))) %>%
+  mutate(across(spend_type, \(x) str_to_sentence(x)))
+
+spend_225 %>% writexl::write_xlsx("spend_225.xlsx")
+```
+
+```{r}
+Sys.time()
+```
