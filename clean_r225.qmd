@@ -110,7 +110,7 @@ balances_225 <-
   data_transformed %>%
   select(!c(commitments_ltd, obligations_ltd, expenditures_ltd))
 
-balances_225 %>% writexl::write_xlsx("balances_225.xlsx")
+balances_225 %>% writexl::write_xlsx("data/balances_225.xlsx")
 ```
 
 Spend
@@ -125,10 +125,13 @@ spend_225 <-
     cols = c(commitments_ltd, obligations_ltd, expenditures_ltd),
     names_to = "spend_type", values_to = "spend_amount"
   ) %>%
-  mutate(across(spend_type, \(x) str_remove(x, "_ltd$"))) %>%
-  mutate(across(spend_type, \(x) str_to_sentence(x)))
+  mutate(spend_type = case_when(
+    spend_type == "commitments_ltd" ~ "1. Commitments",
+    spend_type == "obligations_ltd" ~ "2. Obligations",
+    spend_type == "expenditures_ltd" ~ "3. Expenditures",
+  ))
 
-spend_225 %>% writexl::write_xlsx("spend_225.xlsx")
+spend_225 %>% writexl::write_xlsx("data/spend_225.xlsx")
 ```
 
 ```{r}
