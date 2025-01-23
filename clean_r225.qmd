@@ -11,19 +11,11 @@ library(glue)
 Setup
 
 ```{r}
-user <- Sys.getenv("USERNAME")
-
 path_data <- glue(
   "C:/Users",
-  "{user}",
-  "District of Columbia Public Schools",
-  "DCPS Budget - Data",
-  .sep = "/"
-)
-
-path_balance <- glue(
-  path_data,
-  "Capital Project Balance",
+  "{Sys.getenv('USERNAME')}",
+  "OneDrive - District of Columbia Public Schools",
+  "Data",
   .sep = "/"
 )
 ```
@@ -33,7 +25,7 @@ Read file
 ```{r}
 data_raw <-
   readxl::read_excel(
-    glue("{path_balance}/r225.xls"),
+    glue("{path_data}/raw/r225.xls"),
     sheet = "By Owner Project Task Sub Task", skip = 8,
     col_types = c(
       rep("text", 3), "numeric", "text", "numeric", rep("text", 3),
@@ -110,7 +102,8 @@ balances_225 <-
   data_transformed %>%
   select(!c(commitments_ltd, obligations_ltd, expenditures_ltd))
 
-balances_225 %>% writexl::write_xlsx("data/balances_225.xlsx")
+balances_225 %>%
+  writexl::write_xlsx(glue("{path_data}/clean/balances_225.xlsx"))
 ```
 
 Spend
@@ -131,7 +124,8 @@ spend_225 <-
     spend_type == "expenditures_ltd" ~ "3. Expenditures",
   ))
 
-spend_225 %>% writexl::write_xlsx("data/spend_225.xlsx")
+spend_225 %>%
+  writexl::write_xlsx(glue("{path_data}/clean/spend_225.xlsx"))
 ```
 
 ```{r}
