@@ -1,0 +1,168 @@
+---
+title: "Clean R085"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(glue)
+```
+
+Setup
+
+```{r}
+path_data <- glue(
+  "C:/Users",
+  "{Sys.getenv('USERNAME')}",
+  "OneDrive - District of Columbia Public Schools",
+  "Data",
+  .sep = "/"
+)
+```
+
+Read file
+
+```{r}
+data_raw <-
+  readxl::read_excel(
+    glue("{path_data}/raw/r085.xls"),
+    skip = 19,
+    col_types = c(
+      rep("text", 7),
+      rep("text", 2), # date
+      "text", # numeric
+      "text",
+      "text", # numeric
+      rep("text", 8),
+      rep("text", 2), # date
+      rep("text", 16),
+      rep("numeric", 7)
+    )
+  ) %>%
+  janitor::clean_names()
+```
+
+Rename columns
+
+```{r}
+data_renamed <-
+  data_raw %>%
+  select(
+    agency_owner = owner_agency,
+    fund_number,
+    fund_name,
+    master_project_number,
+    master_project_name,
+    project_organization,
+    project_number,
+    project_name,
+    project_type,
+    project_status,
+    project_start_date,
+    project_end_date,
+    project_number_iba = iba_project_number,
+    task_number = parent_task_number,
+    task_name = parent_task_name,
+    subtask_number,
+    subtask_name,
+    award_organization,
+    award_number,
+    award_name,
+    award_type,
+    award_status,
+    award_start_date,
+    award_end_date,
+    award_sponsor,
+    award_cfda = award_cfda_no,
+    costcenter_p_1_number = cost_center_parent1,
+    costcenter_p_1_name = cost_center_parent1_description,
+    costcenter_number = cost_center,
+    costcenter_name = cost_center_name,
+    program_p_1_number = program_parent1,
+    program_p_1_name = program_parent1_description,
+    program_number = program,
+    program_name,
+    account_p1_number = account_parent1,
+    account_p1_name = account_parent1_description,
+    account_number = account,
+    account_name,
+    authority_ltd = lifetime_budget,
+    authority_balance = lifetime_balance,
+    allotment_ltd = lifetime_allotment,
+    allotment_balance = allotment_balance,
+    commitments_ltd = commitment,
+    obligations_ltd = obligations,
+    expenditures_ltd = expenditures
+  )
+```
+
+Transform columns
+
+```{r}
+data_transformed <-
+  data_renamed %>%
+  mutate(authority_balance = authority_ltd - (
+    commitments_ltd + obligations_ltd + expenditures_ltd
+  )) %>%
+  mutate(allotment_balance = allotment_ltd - (
+    commitments_ltd + obligations_ltd + expenditures_ltd
+  )) %>%
+  mutate(
+    across(
+      c(
+        authority_ltd,
+        authority_balance,
+        allotment_ltd,
+        allotment_balance,
+        commitments_ltd,
+        obligations_ltd,
+        expenditures_ltd
+      ),
+      \(x) round(x, 2)
+    )
+  ) %>%
+  arrange(
+    fund_number, account_number,
+    program_number, costcenter_number,
+    project_number, award_number
+  )
+```
+
+Separate balances and spend into different tables
+
+Balances
+
+```{r}
+balances <-
+  data_transformed %>%
+  select(!c(commitments_ltd, obligations_ltd, expenditures_ltd))
+
+balances %>%
+  writexl::write_xlsx(glue("{path_data}/clean/balances_085.xlsx"))
+```
+
+Spend
+
+```{r}
+spend <-
+  data_transformed %>%
+  select(
+    !c(authority_ltd, authority_balance, allotment_ltd, allotment_balance)
+  ) %>%
+  pivot_longer(
+    cols = c(commitments_ltd, obligations_ltd, expenditures_ltd),
+    names_to = "spend_type", values_to = "spend_amount"
+  ) %>%
+  mutate(spend_type = case_when(
+    spend_type == "commitments_ltd" ~ "1. Commitments",
+    spend_type == "obligations_ltd" ~ "2. Obligations",
+    spend_type == "expenditures_ltd" ~ "3. Expenditures",
+  ))
+
+spend %>%
+  writexl::write_xlsx(glue("{path_data}/clean/spend_085.xlsx"))
+```
+
+```{r}
+Sys.time()
+```
