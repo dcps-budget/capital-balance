@@ -87,6 +87,15 @@ data_transformed <-
       \(x) str_to_upper(x)
     )
   ) %>%
+  mutate(fund_name = case_when(
+    fund_name == "LONG TERM / G.O. / I.T. BONDS" ~ "Bonds: Long-Term",
+    fund_name == "SHORT - TERM BONDS" ~ "Bonds: Short-Term",
+    fund_name == "PAY AS YOU GO" ~ "PAYGO: Unrestricted",
+    fund_name == "PAYGO-RESTRICTED" ~ "PAYGO: Restricted",
+    fund_name == "CAPITAL FUND - PRIVATE CONTRIBUTIONS" ~ "Private",
+    fund_name == "INTRA DISTRICT CAPITAL" ~ "Intra-District",
+    .default = fund_name
+  )) %>%
   filter(agency_owner == "GA0") %>%
   arrange(
     agency_owner, project_number, task_number, subtask_number, fund_number
