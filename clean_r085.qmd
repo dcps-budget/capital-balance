@@ -30,9 +30,9 @@ data_raw <-
     col_types = c(
       rep("text", 7),
       rep("text", 2), # date
-      "text", # numeric
-      "text",
-      "text", # numeric
+      rep("text", 1), # numeric
+      rep("text", 1),
+      rep("text", 1), # numeric
       rep("text", 8),
       rep("text", 2), # date
       rep("text", 16),
