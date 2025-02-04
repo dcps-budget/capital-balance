@@ -28,7 +28,11 @@ data_raw <-
     glue("{path_data}/raw/r225.xls"),
     sheet = "By Owner Project Task Sub Task", skip = 8,
     col_types = c(
-      rep("text", 3), "numeric", "text", "numeric", rep("text", 3),
+      rep("text", 3),
+      rep("numeric", 1),
+      rep("text", 1),
+      rep("numeric", 1),
+      rep("text", 3),
       rep("numeric", 7)
     )
   ) %>%
